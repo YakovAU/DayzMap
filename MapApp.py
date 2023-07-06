@@ -11,6 +11,7 @@ def is_within_delete_zone(x, y, marker_x, marker_y):
 class Application(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
+        self.geometry("1920x1080")
         self.map_file = None
         self.map_image = None
         self.marker_color = "red"
@@ -21,10 +22,15 @@ class Application(tk.Tk):
         self.canvas.bind("<Button-3>", self.on_canvas_right_click)
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
         self.canvas.bind("<Tab>", lambda event: self.toggle_marker_color())
-        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.focus_set()
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.scrollbar_y = tk.Scrollbar(self, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.configure(yscrollcommand=self.scrollbar_y.set)
+
+        self.scrollbar_x = tk.Scrollbar(self, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        self.canvas.configure(xscrollcommand=self.scrollbar_x.set)
         self.toggle_button = tk.Button(self, text="Toggle Color", command=self.toggle_marker_color)
         self.toggle_button.pack(side=tk.RIGHT)
 
@@ -58,25 +64,24 @@ class Application(tk.Tk):
         self.canvas.create_image(0, 0, anchor="nw", image=self.map_image)
 
     def update_canvas(self):
-        self.canvas.delete("all")
-        self.draw_map()
-        self.draw_markers()
+        self.canvas.delete("marker")  # Delete all markers
 
         canvas_width = int(self.image_width * self.zoom_factor)
         canvas_height = int(self.image_height * self.zoom_factor)
-        self.canvas.config(width=canvas_width, height=canvas_height)
-        self.scrollbar.config(command=self.canvas.yview)
+        self.canvas.config(scrollregion=(0, 0, canvas_width, canvas_height))
+        self.canvas.config(width=self.canvas.winfo_width(), height=self.canvas.winfo_height())
+
         self.resized_image = ImageOps.fit(self.image, (canvas_width, canvas_height))
         image_tk = ImageTk.PhotoImage(self.resized_image)
 
         self.canvas_image = self.canvas.create_image(0, 0, anchor=tk.NW, image=image_tk)
-        self.canvas.config(scrollregion=self.canvas.bbox(tk.ALL))
+        self.canvas.image = image_tk
 
         for marker in self.markers:
             x, y, text, color = marker
-            self.draw_marker(x, y, text, color)
+            self.draw_marker(x, y, text, color)  # Redraw the markers
 
-        self.canvas.image = image_tk
+        self.canvas.configure(scrollregion=self.canvas.bbox(tk.ALL))
 
     def draw_markers(self):
         for marker in self.markers:
@@ -89,11 +94,18 @@ class Application(tk.Tk):
             marker_y = int(y * self.zoom_factor)
             marker_radius = 10
 
-            self.canvas.create_oval(
+            oval_id = self.canvas.create_oval(
                 marker_x - marker_radius, marker_y - marker_radius,
                 marker_x + marker_radius, marker_y + marker_radius,
-                outline=color, width=2)
-            self.canvas.create_text(marker_x + marker_radius + 5, marker_y, text=text, anchor=tk.W)
+                outline=color, width=2, tags="marker"
+            )
+            text_id = self.canvas.create_text(
+                marker_x + marker_radius + 5, marker_y, text=text, anchor=tk.W, tags="marker"
+            )
+
+            return oval_id, text_id
+
+        return None, None
 
     def toggle_marker_color(self):
         if self.marker_color == "red":
